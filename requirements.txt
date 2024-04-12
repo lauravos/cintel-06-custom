@@ -1,1 +1,6 @@
+pandas
+plotly
+ridgeplot
+shiny
+shinywidgets
 
