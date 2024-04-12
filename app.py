@@ -8,20 +8,26 @@ import faicons as fa
 tips = px.data.tips()
 
 bill_rng = (min(tips.total_bill), max(tips.total_bill))
-
-
-ICONS = {
-    "ellipsis": fa.icon_svg("ellipsis"),
-}
+#size_rng= (min(tips.size), max(tips.size))
 
 # Add page title and sidebar
 app_ui = ui.page_sidebar(
     ui.sidebar(
         ui.input_slider("total_bill", "Bill amount", min=bill_rng[0], max=bill_rng[1], value=bill_rng, pre="$",),
-        ui.input_checkbox_group("time", "Food Service", ["Lunch", "Dinner"], inline=True), 
+        #ui.input_slider("size", "Party Size", 1,7,2 ),
+        #ui.input_selectize("size", "Party Size", [1, 2, 3, 4, 5, 6, 7]),
+        ui.input_checkbox_group("time", "Food Service", ["Lunch", "Dinner"], selected=["Lunch", "Dinner"], inline=True), 
+        ui.input_checkbox_group("day", "Day", ["Thur", "Fri", "Sat", "Sun"], selected=["Thur", "Fri", "Sat", "Sun"], inline=True),
         ui.input_action_button("reset", "Reset filter"),
+        ui.h6("Links:"),
+            ui.a(
+            "GitHub Source",
+            href="https://github.com/lauravos/cintel-06-custom",
+            target="_blank",
+        ),        
         open="desktop",
     ),
+        
     ui.layout_columns(
         ui.value_box("Total tippers", ui.output_ui("total_tippers"), showcase=fa.icon_svg("user")),
         ui.value_box("Average tip", ui.output_ui("average_tip"), showcase=fa.icon_svg("money-bill-wave")),
@@ -36,7 +42,7 @@ app_ui = ui.page_sidebar(
             ui.card_header(
                 "Total bill vs tip",
                 ui.popover(
-                    ICONS["ellipsis"],
+                    fa.icon_svg("ellipsis"),
                     ui.input_radio_buttons(
                         "scatter_color",
                         None,
@@ -55,7 +61,7 @@ app_ui = ui.page_sidebar(
             ui.card_header(
                 "Tip percentages",
                 ui.popover(
-                    ICONS["ellipsis"],
+                    fa.icon_svg("ellipsis"),
                     ui.input_radio_buttons(
                         "tip_perc_y",
                         "Split by:",
@@ -82,9 +88,12 @@ def server(input, output, session):
     @reactive.calc
     def tips_data():
         bill = input.total_bill()
+        #psize = input.size()
         idx1 = tips.total_bill.between(bill[0], bill[1])
         idx2 = tips.time.isin(input.time())
-        return tips[idx1 & idx2]
+        idx3 = tips.day.isin(input.day())
+        #idx4 = tips.size.between(1, 7)
+        return tips[idx1 & idx2 & idx3]
 
     @render.ui
     def total_tippers():
@@ -134,7 +143,7 @@ def server(input, output, session):
             samples=samples,
             labels=uvals,
             bandwidth=0.01,
-            colorscale="viridis",
+            colorscale="plasma",
             colormode="row-index",
         )
 
@@ -150,7 +159,8 @@ def server(input, output, session):
     @reactive.event(input.reset)
     def _():
         ui.update_slider("total_bill", value=bill_rng)
+        #ui.update_slider("size", value=)
         ui.update_checkbox_group("time", selected=["Lunch", "Dinner"])
-
+        ui.update_checkbox_group("day", selected=["Thur", "Fri", "Sat", "Sun"])
 
 app = App(app_ui, server)
