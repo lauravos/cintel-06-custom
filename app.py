@@ -4,18 +4,22 @@ from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_plotly, render_widget
 import faicons as fa
 
+
+
 #import dataset
 tips = px.data.tips()
+tips =tips.rename(columns={'size': 'size2'})
 
 bill_rng = (min(tips.total_bill), max(tips.total_bill))
-#size_rng= (min(tips.size), max(tips.size))
+size_rng= (min(tips.size2), max(tips.size2))
+
 
 # Add page title and sidebar
 app_ui = ui.page_sidebar(
     ui.sidebar(
+        ui.input_dark_mode(mode="dark"),
         ui.input_slider("total_bill", "Bill amount", min=bill_rng[0], max=bill_rng[1], value=bill_rng, pre="$",),
-        #ui.input_slider("size", "Party Size", 1,7,2 ),
-        #ui.input_selectize("size", "Party Size", [1, 2, 3, 4, 5, 6, 7]),
+        ui.input_slider("size2", "Party Size", min=int(size_rng[0]), max=int(size_rng[1]), value=(size_rng)),
         ui.input_checkbox_group("time", "Food Service", ["Lunch", "Dinner"], selected=["Lunch", "Dinner"], inline=True), 
         ui.input_checkbox_group("day", "Day", ["Thur", "Fri", "Sat", "Sun"], selected=["Thur", "Fri", "Sat", "Sun"], inline=True),
         ui.input_action_button("reset", "Reset filter"),
@@ -23,24 +27,27 @@ app_ui = ui.page_sidebar(
             ui.a(
             "GitHub Source",
             href="https://github.com/lauravos/cintel-06-custom",
-            target="_blank",
-        ),        
-        open="desktop",
-    ),
+            target="_blank",),  
+        open="desktop",),
         
     ui.layout_columns(
-        ui.value_box("Total tippers", ui.output_ui("total_tippers"), showcase=fa.icon_svg("user")),
-        ui.value_box("Average tip", ui.output_ui("average_tip"), showcase=fa.icon_svg("money-bill-wave")),
-        ui.value_box("Average bill", ui.output_ui("average_bill"), showcase=fa.icon_svg("receipt")),
-        fill=False,
-    ),
+        ui.value_box("Total tippers", ui.output_ui("total_tippers"), showcase=fa.icon_svg("user"), theme="bg-gradient-green-blue"),
+        ui.value_box("Average tip", ui.output_ui("average_tip"), showcase=fa.icon_svg("percent"), theme="bg-gradient-green-blue"),
+        ui.value_box("Average Tip Amount", ui.output_ui("average_tip2"), showcase=fa.icon_svg("money-bill-wave"), theme="bg-gradient-green-blue"),
+        ui.value_box("Average bill", ui.output_ui("average_bill"), showcase=fa.icon_svg("receipt"), theme="bg-gradient-green-blue"),
+        fill=False,),
+
     ui.layout_columns(
+        #make data frame
         ui.card(
-            ui.card_header("Tips data"), ui.output_data_frame("table"), full_screen=True
+            ui.card_header("Tips Data"), 
+            ui.output_data_frame("table"), 
+            full_screen=True, 
         ),
+        #make scatterplot
         ui.card(
             ui.card_header(
-                "Total bill vs tip",
+                "Bill Total vs Tip",
                 ui.popover(
                     fa.icon_svg("ellipsis"),
                     ui.input_radio_buttons(
@@ -57,9 +64,11 @@ app_ui = ui.page_sidebar(
             output_widget("scatterplot"),
             full_screen=True,
         ),
+       
+        #make ridgeline plot
         ui.card(
             ui.card_header(
-                "Tip percentages",
+                "Tip Percentages",
                 ui.popover(
                     fa.icon_svg("ellipsis"),
                     ui.input_radio_buttons(
@@ -67,33 +76,27 @@ app_ui = ui.page_sidebar(
                         "Split by:",
                         ["sex", "smoker", "day", "time"],
                         selected="day",
-                        inline=True,
-                    ),
-                    title="Add a color variable",
-                ),
-                class_="d-flex justify-content-between align-items-center",
-            ),
+                        inline=True,),
+                    title="Add a color variable",),
+                class_="d-flex justify-content-between align-items-center",),
             output_widget("tip_perc"),
-            full_screen=True,
-        ),
-        col_widths=[6, 6, 12],
-    ),
+            full_screen=True,),
+        col_widths=[6, 6, 12],),
     #ui.include_css(app_dir / "styles.css"),
     title="Gagnon-Vos Restaurant Tipping Project",
-    fillable=True,
-)
+    fillable=True,)
 
 
 def server(input, output, session):
     @reactive.calc
     def tips_data():
         bill = input.total_bill()
-        #psize = input.size()
+        psize = input.size2()
         idx1 = tips.total_bill.between(bill[0], bill[1])
         idx2 = tips.time.isin(input.time())
         idx3 = tips.day.isin(input.day())
-        #idx4 = tips.size.between(1, 7)
-        return tips[idx1 & idx2 & idx3]
+        idx4 = tips.size2.between(psize[0], psize[1])
+        return tips[idx1 & idx2 & idx3 & idx4]
 
     @render.ui
     def total_tippers():
@@ -105,6 +108,13 @@ def server(input, output, session):
         if d.shape[0] > 0:
             perc = d.tip / d.total_bill
             return f"{perc.mean():.1%}"
+
+    @render.ui
+    def average_tip2():
+        d = tips_data()
+        if d.shape[0] > 0:
+            perc = d.tip 
+            return f"{perc.mean():.2f}" 
 
     @render.ui
     def average_bill():
@@ -124,9 +134,10 @@ def server(input, output, session):
             tips_data(),
             x="total_bill",
             y="tip",
+            labels={"total_bill":"Bill($)", "tip":"Tip Amount($)"},
             color=None if color == "none" else color,
             trendline="lowess",
-        )
+            trendline_color_override='indigo',)
 
     @render_plotly
     def tip_perc():
@@ -144,14 +155,11 @@ def server(input, output, session):
             labels=uvals,
             bandwidth=0.01,
             colorscale="plasma",
-            colormode="row-index",
-        )
+            colormode="row-index",)
 
         plt.update_layout(
             legend=dict(
-                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
-            )
-        )
+                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5))
 
         return plt
 
@@ -159,7 +167,7 @@ def server(input, output, session):
     @reactive.event(input.reset)
     def _():
         ui.update_slider("total_bill", value=bill_rng)
-        #ui.update_slider("size", value=)
+        ui.update_slider("size2", value=size_rng)
         ui.update_checkbox_group("time", selected=["Lunch", "Dinner"])
         ui.update_checkbox_group("day", selected=["Thur", "Fri", "Sat", "Sun"])
 
